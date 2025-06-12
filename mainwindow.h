@@ -16,10 +16,14 @@ class MainWindow : public QMainWindow
 public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
+    QList<QPair<QString, double>> forecastPoints;
+    QList<QString> weatherIcons;
 
 private slots:
     void onUpdateButtonClicked();
     void onWeatherDataReceived(const QString &data);
+    void saveForecastToFile();
+    void on_graphButton_clicked();
 
 private:
     Ui::MainWindow *ui;

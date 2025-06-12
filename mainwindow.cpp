@@ -1,6 +1,11 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include "forecastchartwindow.h"
 #include <QTimer>
+#include <QMessageBox>
+#include <QFile>
+#include <QTextStream>
+#include <QRegularExpression>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent),
@@ -23,7 +28,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     // По умолчанию выбираем Томск и загружаем его прогноз
     ui->cityComboBox->setCurrentText("Томск");
-
+    connect(ui->saveButton, &QPushButton::clicked, this, &MainWindow::saveForecastToFile);
     connect(ui->updateButton, &QPushButton::clicked, this, &MainWindow::onUpdateButtonClicked);
 }
 
@@ -54,7 +59,17 @@ void MainWindow::setupCityCoordinates()
         ui->cityComboBox->addItem(city);
     }
 }
+void MainWindow::on_graphButton_clicked()
+{
+    if (forecastPoints.isEmpty()) {
+        QMessageBox::information(this, "Нет данных", "Сначала загрузите прогноз.");
+        return;
+    }
 
+    ForecastChartWindow *chartWindow = new ForecastChartWindow(this);
+    chartWindow->setForecastData(forecastPoints, weatherIcons);
+    chartWindow->exec();
+}
 void MainWindow::onUpdateButtonClicked()
 {
     QString selectedCity = ui->cityComboBox->currentText();
@@ -72,7 +87,81 @@ void MainWindow::onUpdateButtonClicked()
     });
 }
 
+
+void MainWindow::saveForecastToFile()
+{
+    QString forecastText = ui->forecastText->toPlainText(); // предположим, прогноз отображается в QTextEdit
+    QString selectedCity = ui->cityComboBox->currentText();     // или другой виджет с городами
+
+    if (forecastText.isEmpty()) {
+        QMessageBox::warning(this, "Сохранение", "Сначала получите прогноз перед сохранением.");
+        return;
+    }
+
+    QFile file("forecast_history.txt");
+    if (file.open(QIODevice::Append | QIODevice::Text)) {
+        QTextStream out(&file);
+        out << "Город: " << selectedCity << "\n";
+        out << forecastText << "\n";
+        out << "----------------------------------------\n";
+        file.close();
+
+        QMessageBox::information(this, "Сохранение", "Прогноз успешно сохранён!");
+    } else {
+        QMessageBox::critical(this, "Ошибка", "Не удалось открыть файл для записи.");
+    }
+}
 void MainWindow::onWeatherDataReceived(const QString &data)
 {
-    ui->weatherLabel->setText(data);
+    ui->forecastText->setText(data);
+
+    forecastPoints.clear();
+    weatherIcons.clear();
+
+    QRegularExpression rx(R"(^(.*)\s(\d{2}:\d{2}:\d{2}):\s([-+]?\d+(?:\.\d+)?)°C.*([^\s]{1,3}))");
+
+    QStringList lines = data.split('\n', Qt::SkipEmptyParts);
+    QSet<QString> usedDates;
+    QString today = QDate::currentDate().toString("dddd").toLower();
+
+    for (const QString &line : lines) {
+        if (line.contains("°C")) {
+            QRegularExpressionMatch match = rx.match(line);
+            if (match.hasMatch()) {
+                QString date = match.captured(1).trimmed().toLower();
+                QString time = match.captured(2);
+                QString label = date + " " + time;
+                double temp = match.captured(3).toDouble();
+                QString icon = match.captured(4);
+
+                static QMap<QString, QString> dayAbbreviations = {
+                    {"понедельник", "пн"},
+                    {"вторник", "вт"},
+                    {"среда", "ср"},
+                    {"четверг", "чт"},
+                    {"пятница", "пт"},
+                    {"суббота", "сб"},
+                    {"воскресенье", "вс"}
+                };
+
+                QString key = dayAbbreviations.value(date, date);  // заменяем на сокращение
+
+                if (!usedDates.contains(key) || time.startsWith("13:00:00")) {
+                    if (usedDates.contains(key)) {
+                        forecastPoints.removeLast();
+                        weatherIcons.removeLast();
+                    }
+                    if (date == today) {
+                        forecastPoints.prepend({label, temp});
+                        weatherIcons.prepend(icon);
+                    } else {
+                        forecastPoints.append({label, temp});
+                        weatherIcons.append(icon);
+                    }
+                    usedDates.insert(key);
+                }
+            }
+        }
+    }
 }
+

@@ -67,7 +67,7 @@ QString WeatherAPI::parseThreeHourForecast(const QByteArray &response)
     QDate currentDate = QDate::currentDate();
 
     static const QStringList daysOfWeek = {
-        "воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"
+        "вс", "пн", "вт", "ср", "чт", "пт", "сб"
     };
 
     for (int i = 0; i < list.size(); i += 2) {  // шаг 6 часов
@@ -120,5 +120,16 @@ QString WeatherAPI::parseThreeHourForecast(const QByteArray &response)
 
     return result.trimmed();
 }
-
+QUrl WeatherAPI::buildForecastUrl(double lat, double lon)
+{
+    QUrl url("https://api.openweathermap.org/data/2.5/forecast");
+    QUrlQuery query;
+    query.addQueryItem("lat", QString::number(lat));
+    query.addQueryItem("lon", QString::number(lon));
+    query.addQueryItem("units", "metric");
+    query.addQueryItem("lang", "ru");
+    query.addQueryItem("appid", apiKey);
+    url.setQuery(query);
+    return url;
+}
 
