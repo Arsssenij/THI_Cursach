@@ -13,7 +13,7 @@ qt_add_executable(WeatherApp
     main.cpp
     mainwindow.cpp
     weatherapi.cpp
-    location.cpp
+    location.cppX
     forecastchartwindow.cpp
 
     mainwindow.h
